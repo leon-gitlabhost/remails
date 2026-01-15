@@ -45,6 +45,7 @@ export default function ProjectSettings() {
   }
 
   const confirmDeleteProject = (project: Project) => {
+    const projectDomains = domains?.filter((domain) => domain.project_id === project.id);
     modals.openConfirmModal({
       title: "Please confirm your action",
       size: "lg",
@@ -53,11 +54,11 @@ export default function ProjectSettings() {
           <Text>
             Are you sure you want to delete project <strong>{project.name}</strong>?
           </Text>
-          {domains && (
+          {projectDomains && projectDomains.length > 0 && (
             <>
               <Text>This will also delete the following domains configured in this project:</Text>
               <List>
-                {domains.map((domain) => (
+                {projectDomains.map((domain) => (
                   <List.Item key={domain.id}>
                     <Text fw="bold">{domain.domain}</Text>
                   </List.Item>
