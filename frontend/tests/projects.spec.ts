@@ -1,5 +1,45 @@
 import { expect, test } from "../playwright/fixtures.ts";
 import { createProject, deleteProject, uuidRegex } from "./util.ts";
+import { v4 as uuid } from "uuid";
+
+async function toDomains(page: import("@playwright/test").Page) {
+  await page.locator("a").filter({ hasText: "Domains" }).click();
+  const expectedUrl = new RegExp(`${uuidRegex}/domains`);
+  await expect(page).toHaveURL(expectedUrl);
+  await expect(page.getByRole("button", { name: "New Domain" })).toBeVisible();
+}
+
+async function createDomainWithProject(page: import("@playwright/test").Page, projectName: string): Promise<string> {
+  const domain = `${uuid()}.com`;
+
+  await page.getByRole("button", { name: "New Domain" }).click();
+  await expect(page.getByRole("dialog", { name: "Create New Domain" })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Domain Name" }).fill(domain);
+
+  // select project
+  await page.getByRole("textbox", { name: "Usable by" }).click();
+  await expect(page.getByRole("listbox", { name: "Usable by" })).toBeVisible();
+  await page.getByRole("option", { name: projectName }).click();
+
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Configure later" }).click();
+
+  return domain;
+}
+
+async function createDomainWithoutProject(page: import("@playwright/test").Page): Promise<string> {
+  const domain = `${uuid()}.com`;
+
+  await page.getByRole("button", { name: "New Domain" }).click();
+  await expect(page.getByRole("dialog", { name: "Create New Domain" })).toBeVisible();
+
+  await page.getByRole("textbox", { name: "Domain Name" }).fill(domain);
+  await page.getByRole("button", { name: "Next" }).click();
+  await page.getByRole("button", { name: "Configure later" }).click();
+
+  return domain;
+}
 
 test("Project lifecycle", async ({ page }) => {
   await page.goto("/");
@@ -151,4 +191,54 @@ test("Credentials lifecycle", async ({ page }) => {
   await expect(page.getByLabel("Credentials")).not.toContainText(/[0-9a-f]{8}-playwright-smtp-user/);
 
   await deleteProject(page);
+});
+
+test("Delete project only shows associated domains in confirmation", async ({ page }) => {
+  await page.goto("/");
+
+  // Create a project
+  const projectName = await createProject(page);
+
+  // Go to domains and create a domain associated with the project
+  await toDomains(page);
+  const associatedDomain = await createDomainWithProject(page, projectName);
+
+  // Create a domain NOT associated with the project
+  await toDomains(page);
+  const unassociatedDomain = await createDomainWithoutProject(page);
+
+  // Navigate back to projects
+  await page.locator("a").filter({ hasText: "Projects" }).click();
+
+  // Go to project settings
+  await page
+    .getByRole("row", { name: projectName })
+    .getByRole("button")
+    .locator(".tabler-icon.tabler-icon-edit")
+    .click();
+
+  // Click delete button
+  await page.getByRole("button", { name: "Delete" }).click();
+
+  // Get the confirmation modal
+  const modal = page.getByLabel("Please confirm your action");
+
+  // Verify the associated domain IS shown in the confirmation
+  await expect(modal.getByText(associatedDomain)).toBeVisible();
+
+  // Verify the unassociated domain is NOT shown in the confirmation
+  await expect(modal.getByText(unassociatedDomain)).not.toBeVisible();
+
+  // Cancel deletion and clean up
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  // Delete the project (which will also delete the associated domain)
+  await deleteProject(page);
+
+  // Clean up the unassociated domain
+  await toDomains(page);
+  await page.getByRole("table").getByRole("row").filter({ hasText: unassociatedDomain }).getByRole("button").click();
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByText("Domain deleted")).toBeVisible();
 });
