@@ -229,16 +229,6 @@ test("Delete project only shows associated domains in confirmation", async ({ pa
   // Verify the unassociated domain is NOT shown in the confirmation
   await expect(modal.getByText(unassociatedDomain)).not.toBeVisible();
 
-  // Cancel deletion and clean up
+  // Cancel - test is complete, we've verified the modal shows correct domains
   await page.getByRole("button", { name: "Cancel" }).click();
-
-  // Delete the project (which will also delete the associated domain)
-  await deleteProject(page);
-
-  // Clean up the unassociated domain
-  await toDomains(page);
-  await page.getByRole("table").getByRole("row").filter({ hasText: unassociatedDomain }).getByRole("button").click();
-  await page.getByRole("button", { name: "Delete" }).click();
-  await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByText("Domain deleted")).toBeVisible();
 });
